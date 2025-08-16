@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Posting ke Blogger via API</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: #f4f7f6; color: #333; margin: 0; padding: 20px; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
+        .container { width: 100%; max-width: 700px; background: #fff; padding: 30px; border-radius: 8px; box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1); }
+        h1 { text-align: center; color: #ff6600; margin-bottom: 25px; }
+        #auth-section, #post-section { text-align: center; }
+        button { background-color: #ff6600; color: white; border: none; padding: 12px 25px; border-radius: 5px; cursor: pointer; font-size: 16px; font-weight: bold; transition: background-color 0.3s; -webkit-appearance: none; }
+        button:hover { background-color: #e65c00; }
+        button:disabled { background-color: #cccccc; cursor: not-allowed; }
+        .form-group { margin-bottom: 20px; text-align: left; }
+        label { display: block; margin-bottom: 8px; font-weight: 600; }
+        input[type="text"], textarea { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; font-size: 1em; }
+        textarea { height: 250px; resize: vertical; }
+        #status { margin-top: 20px; padding: 10px; border-radius: 5px; text-align: center; font-weight: bold; word-wrap: break-word; }
+        .status-success { background-color: #e0f8e9; color: #278552; }
+        .status-error { background-color: #f8e0e0; color: #c92a2a; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>Posting ke Blogger</h1>
+    <div id="auth-section">
+        <p>Silakan login dengan akun Google Anda untuk melanjutkan.</p>
+        <button id="login-button">Login dengan Google</button>
+    </div>
+    <div id="post-section" style="display: none;">
+        <p>Anda telah login. Sekarang Anda bisa membuat postingan baru.</p>
+        <div class="form-group"><label for="post-title">Judul Postingan</label><input type="text" id="post-title" placeholder="Masukkan judul di sini..."></div>
+        <div class="form-group"><label for="post-content">Isi Postingan (HTML didukung)</label><textarea id="post-content" placeholder="Tulis konten Anda di sini..."></textarea></div>
+        <button id="publish-button">Publikasikan Postingan</button>
+        <button id="logout-button" style="background-color: #888;">Logout</button>
+    </div>
+    <div id="status"></div>
+</div>
+
+<script>
+    // --- KONFIGURASI LENGKAP ---
+    const API_KEY = 'AIzaSyBxpeSp-nIPSt-wjSvlpTQBVS1nVUCb3pc';
+    const CLIENT_ID = '703424403969-4104dg46f1k39rijook090fak3binjfm.apps.googleusercontent.com';
+    const BLOG_ID = '3448418521565310330';
+    // ---------------------------
+
+    const DISCOVERY_DOC = 'https://www.googleapis.com/discovery/v1/apis/blogger/v3/rest';
+    const SCOPES = 'https://www.googleapis.com/auth/blogger';
+
+    let authInstance;
+
+    function gapiLoaded() { gapi.load('client:auth2', initializeGapiClient); }
+
+    async function initializeGapiClient() {
+        await gapi.client.init({ apiKey: API_KEY, clientId: CLIENT_ID, discoveryDocs: [DISCOVERY_DOC], scope: SCOPES });
+        authInstance = gapi.auth2.getAuthInstance();
+        authInstance.isSignedIn.listen(updateSigninStatus);
+        updateSigninStatus(authInstance.isSignedIn.get());
+    }
+
+    function updateSigninStatus(isSignedIn) {
+        const loginButton = document.getElementById('login-button');
+        const logoutButton = document.getElementById('logout-button');
+        const publishButton = document.getElementById('publish-button');
+        const authSection = document.getElementById('auth-section');
+        const postSection = document.getElementById('post-section');
+
+        if (isSignedIn) {
+            authSection.style.display = 'none';
+            postSection.style.display = 'block';
+        } else {
+            authSection.style.display = 'block';
+            postSection.style.display = 'none';
+        }
+
+        loginButton.onclick = () => {
+            // Baris tes: untuk memastikan tombolnya berfungsi
+            alert('Tombol login diklik! Mencoba membuka jendela Google...');
+            authInstance.signIn();
+        };
+        logoutButton.onclick = () => authInstance.signOut();
+        publishButton.onclick = createPost;
+    }
+
+    async function createPost() {
+        // Sisa fungsi createPost sama, tidak perlu diubah.
+        const title = document.getElementById('post-title').value;
+        const content = document.getElementById('post-content').value;
+        if (!title || !content) { alert('Judul dan konten tidak boleh kosong!'); return; }
+        document.getElementById('publish-button').disabled = true;
+        setStatus('Memublikasikan postingan...', 'info');
+        try {
+            const response = await gapi.client.blogger.posts.insert({ 'blogId': BLOG_ID, 'resource': { 'title': title, 'content': content } });
+            setStatus(`Postingan berhasil dipublikasikan! <a href="${response.result.url}" target="_blank">Lihat Postingan</a>`, 'success');
+            document.getElementById('post-title').value = '';
+            document.getElementById('post-content').value = '';
+        } catch (err) {
+            setStatus(`Gagal mempublikasikan: ${err.result.error.message}`, 'error');
+        } finally {
+            document.getElementById('publish-button').disabled = false;
+        }
+    }
+
+    function setStatus(message, type) {
+        const statusDiv = document.getElementById('status');
+        statusDiv.innerHTML = message;
+        if (type === 'success') { statusDiv.className = 'status-success'; } 
+        else if (type === 'error') { statusDiv.className = 'status-error'; } 
+        else { statusDiv.className = ''; }
+    }
+</script>
+<script async defer src="https://apis.google.com/js/api.js" onload="gapiLoaded()"></script>
+</body>
+</html>
